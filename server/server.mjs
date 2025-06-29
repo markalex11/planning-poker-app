@@ -4,7 +4,7 @@ const wss = new WebSocketServer({ port: 3001 });
 console.log('✅ WebSocket server running on ws://localhost:3001');
 
 // Храним участников по roomId
-const rooms = {}; // { roomId1: [ { name, socket }, ... ] }
+const rooms = {};
 
 wss.on('connection', function connection(ws) {
     let currentRoom = null;
@@ -28,89 +28,210 @@ wss.on('connection', function connection(ws) {
             currentUser = userName;
 
             if (!rooms[roomId]) {
-                rooms[roomId] = [];
+                rooms[roomId] = {
+                    users: [],
+                    timer: null,
+                    isRevealed: false,
+                };
             }
 
-            // Проверка на дубликат
-            const alreadyExists = rooms[roomId].some(u => u.name === userName);
+            const room = rooms[roomId];
+            const alreadyExists = room.users.some(u => u.name === userName);
             if (!alreadyExists) {
-                rooms[roomId].push({ name: userName, socket: ws });
+                room.users.push({
+                    name: userName,
+                    socket: ws,
+                    voted: false,
+                    value: null
+                });
             }
 
             console.log(`👤 ${userName} joined room ${roomId}`);
-            broadcastParticipants(roomId);
+
+            ws.send(JSON.stringify({
+                type: 'room_status',
+                isRevealed: rooms[roomId].isRevealed,
+            }));
+
+            if (rooms[roomId].timer && !rooms[roomId].isRevealed) {
+                ws.send(JSON.stringify({
+                    type: 'timer_started',
+                    startTime: rooms[roomId].timer.startTime,
+                    duration: rooms[roomId].timer.duration,
+                }));
+            }
+
+
+            broadcastUsers(roomId)
         }
 
         if (type === 'vote') {
             console.log(`🗳️ ${userName} voted in room ${roomId}`);
 
-            // Инициализируем votes массив
-            if (!rooms[roomId].votes) {
-                rooms[roomId].votes = [];
+            const user = rooms[roomId].users.find(u => u.name === userName);
+            if (user) {
+                user.voted = true;
+                user.value = parsed.value;
             }
 
-            // Обновляем или добавляем голос
-            rooms[roomId].votes = [
-                ...rooms[roomId].votes.filter((v) => v.userName !== userName),
-                { userName, value: parsed.value },
-            ];
-
-            // Рассылаем всем, кто проголосовал (без значения!)
-            const votedMessage = JSON.stringify({
-                type: 'voted',
-                userName,
-            });
-
-            rooms[roomId].forEach(({ socket }) => {
-                if (socket.readyState === socket.OPEN) {
-                    socket.send(votedMessage);
-                }
-            });
+            broadcastUsers(roomId)
 
             // Проверяем, все ли проголосовали
-            const participantNames = rooms[roomId].map((u) => u.name);
-            const votedNames = rooms[roomId].votes.map((v) => v.userName);
-            // Если все участники проголосовали — раскрываем
-            const allVoted = participantNames.every((name) => votedNames.includes(name));
+            const allVoted = rooms[roomId].users.every((u) => u.voted);
             if (allVoted) {
-                const revealMessage = JSON.stringify({
-                    type: 'reveal',
-                    votes: rooms[roomId].votes,
-                });
 
-                rooms[roomId].forEach(({ socket }) => {
-                    if (socket.readyState === socket.OPEN) {
-                        socket.send(revealMessage);
-                    }
-                });
+                if (rooms[roomId].timer?.timeoutId) {
+                    clearTimeout(rooms[roomId].timer.timeoutId);
+                }
+                sendVotes(roomId)
+
+                // const votes = rooms[roomId].users.map(({ name, value }) => ({
+                //     userName: name,
+                //     value
+                // }));
+
+                // rooms[roomId].isRevealed = true;
+
+                // const revealMessage = JSON.stringify({
+                //     type: 'reveal',
+                //     votes,
+                // });
+
+                // rooms[roomId].users.forEach(({ socket }) => {
+                //     if (socket.readyState === socket.OPEN) {
+                //         socket.send(revealMessage);
+                //     }
+                // });
+            }
+        }
+
+        if (type === 'reset') {
+            console.log(`🔄 Resetting round in room ${roomId}`);
+
+            rooms[roomId].users.forEach((user) => {
+                user.voted = false;
+                user.value = null;
+            });
+            // Сброс таймера
+            rooms[roomId].timer = null;
+            rooms[roomId].isRevealed = false;
+
+            // Рассылаем обновлённый список пользователей
+            broadcastUsers(roomId);
+
+            // Удаляем старые результаты (если нужно)
+            const resetMessage = JSON.stringify({ type: 'reset' });
+
+            rooms[roomId].users.forEach(({ socket }) => {
+                if (socket.readyState === socket.OPEN) {
+                    socket.send(resetMessage);
+                }
+            });
+        }
+
+        if (type === 'start_timer') {
+            const now = Date.now();
+
+            if (!rooms[roomId]) return;
+
+            // Очистка предыдущего таймера, если был
+            if (rooms[roomId].timer?.timeoutId) {
+                clearTimeout(rooms[roomId].timer.timeoutId);
             }
 
+            // Сохраняем таймер с ID
+            const timeoutId = setTimeout(() => {
+                const room = rooms[roomId];
+                if (!room || room.isRevealed) return;
 
+                sendVotes(roomId)
+                // const votes = room.users
+                //     .filter(u => u.voted)
+                //     .map(({ name, value }) => ({ userName: name, value }));
+
+                // room.isRevealed = true;
+
+                // const revealMessage = JSON.stringify({
+                //     type: 'reveal',
+                //     votes,
+                // });
+
+                // room.users.forEach(({ socket }) => {
+                //     if (socket.readyState === socket.OPEN) {
+                //         socket.send(revealMessage);
+                //     }
+                // });
+            }, parsed.duration * 1000);
+
+            rooms[roomId].timer = {
+                startTime: now,
+                duration: parsed.duration,
+                timeoutId,
+            };
+
+            // Уведомление клиентов
+            const timerMessage = JSON.stringify({
+                type: 'timer_started',
+                startTime: now,
+                duration: parsed.duration,
+            });
+
+            rooms[roomId].users.forEach(({ socket }) => {
+                if (socket.readyState === socket.OPEN) {
+                    socket.send(timerMessage);
+                }
+            });
         }
+
     });
 
     ws.on('close', () => {
         if (currentRoom && currentUser) {
             // Удаляем пользователя из комнаты
-            rooms[currentRoom] = rooms[currentRoom].filter(u => u.name !== currentUser);
+            rooms[currentRoom].users = rooms[currentRoom].users.filter(u => u.name !== currentUser);
             console.log(`❌ ${currentUser} left room ${currentRoom}`);
-            broadcastParticipants(currentRoom);
+            broadcastUsers(currentRoom)
+        }
+        if (rooms[currentRoom]?.isRevealed) {
+            sendVotes(currentRoom)
         }
     });
 });
 
-// Отправка списка участников всем в комнате
-function broadcastParticipants(roomId) {
-    const participants = rooms[roomId]?.map(u => u.name) || [];
+function broadcastUsers(roomId) {
+    const room = rooms[roomId];
+    if (!room) return;
+
+    const users = room.users.map(({ name, voted }) => ({ name, voted }));
 
     const message = JSON.stringify({
-        type: 'participants',
-        participants,
+        type: 'users',
+        users,
     });
 
-    rooms[roomId]?.forEach(({ socket }) => {
+    room.users.forEach(({ socket }) => {
         if (socket.readyState === socket.OPEN) {
             socket.send(message);
+        }
+    });
+}
+
+function sendVotes(roomId) {
+    const votes = rooms[roomId].users.map(({ name, value }) => ({
+        userName: name,
+        value
+    }));
+
+    rooms[roomId].isRevealed = true;
+
+    const revealMessage = JSON.stringify({
+        type: 'reveal',
+        votes,
+    });
+
+    rooms[roomId].users.forEach(({ socket }) => {
+        if (socket.readyState === socket.OPEN) {
+            socket.send(revealMessage);
         }
     });
 }
