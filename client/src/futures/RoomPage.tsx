@@ -1,102 +1,50 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useRoomStore } from '../store/useRoomStore';
 
 const RoomPage = () => {
-    const { roomId } = useParams();
-    const userName = useRoomStore((state) => state.userName);
-    const { myVote, setMyVote } = useRoomStore((state) => ({
-        myVote: state.myVote,
-        setMyVote: state.setMyVote,
-    }));
+    const routeRoomId = useParams().roomId;
+    const { roomId, userName, joinRoom, vote, startTimer, resetRound } = useRoomStore();
+    const { timerStart, timerDuration, setTimeLeft, timeLeft, setTimerDuration } = useRoomStore();
+    const { users, votes, isRevealed } = useRoomStore();
+    const { setMyVote, myVote } = useRoomStore();
 
-    const [users, setUsers] = useState<{ name: string; voted: boolean }[]>([]);
-    const [votes, setVotes] = useState<{ userName: string; value: number }[]>([]);
-    const [isRevealed, setIsRevealed] = useState(false);
-    const [timerStart, setTimerStart] = useState<number | null>(null);
-    const [timerDuration, setTimerDuration] = useState<number>(30);
-    const [timeLeft, setTimeLeft] = useState<number | null>(null);
-    const socketRef = useRef<WebSocket | null>(null);
+    useEffect(() => {
+        if (routeRoomId && userName) {
+            joinRoom(routeRoomId, userName);
+        }
+    }, [routeRoomId, userName]);
 
     useEffect(() => {
         if (!timerStart || !timerDuration) return;
 
         const interval = setInterval(() => {
-            const secondsLeft = Math.max(0, Math.ceil((timerDuration * 1000 - (Date.now() - timerStart)) / 1000));
+            const secondsLeft = Math.max(
+                0,
+                Math.ceil((timerDuration * 1000 - (Date.now() - timerStart)) / 1000)
+            );
             setTimeLeft(secondsLeft);
-            if (secondsLeft <= 0) {
-                clearInterval(interval);
-            }
+            if (secondsLeft <= 0) clearInterval(interval);
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [timerStart, timerDuration]);
-
-
-    useEffect(() => {
-        const socket = new WebSocket('ws://localhost:3001');
-        socketRef.current = socket;
-
-        socket.onopen = () => {
-            socket.send(JSON.stringify({
-                type: 'join',
-                roomId,
-                userName,
-            }));
-        };
-
-        socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-
-            if (data.type === 'users') {
-                setUsers(data.users);
-            }
-
-            if (data.type === 'reveal') {
-                setVotes(data.votes); // [{ userName, value }]
-                setIsRevealed(true);
-                setTimerStart(null);
-                setTimeLeft(null)
-            }
-
-            if (data.type === 'reset') {
-                setVotes([]); // очищаем результаты
-                setIsRevealed(false);
-                setTimerStart(null);
-                setTimeLeft(null);
-                setMyVote(undefined);
-            }
-
-            if (data.type === 'timer_started') {
-                setTimerStart(data.startTime);
-                setTimerDuration(data.duration); // чтобы UI знал реальное значение
-                setTimeLeft(data.duration);
-            }
-
-            if (data.type === 'room_status') {
-                setIsRevealed(data.isRevealed);
-            }
-        };
-
-        return () => {
-            socket.close();
-        };
-    }, [roomId, userName]);
+    }, [timerStart, timerDuration]); 
 
     const handleVote = (value: number) => {
-        if (isRevealed) return;
-
-        const message = {
-            type: 'vote',
-            roomId,
-            userName,
-            value,
-        };
-
-        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-            socketRef.current.send(JSON.stringify(message));
+        if (!isRevealed) {
+            vote(value);
+            setMyVote(value);
         }
-        setMyVote(value);
+    };
+
+    const handleStartTimer = () => {
+        if (timerDuration > 0 && !isRevealed && (!timeLeft || timeLeft === 0)) {
+            startTimer(timerDuration);
+        }
+    };
+
+    const handleReset = () => {
+        resetRound();
     };
 
     return (
@@ -127,7 +75,7 @@ const RoomPage = () => {
                                         : myVote === value
                                             ? 'bg-green-600 border-2 border-white'
                                             : 'bg-blue-600 hover:bg-blue-700'
-                                            }
+                                    }
                                         `}
                             >
                                 {value}
@@ -146,15 +94,7 @@ const RoomPage = () => {
                         placeholder="Seconds"
                     />
                     <button
-                        onClick={() => {
-                            if (timerDuration > 0 && socketRef.current?.readyState === WebSocket.OPEN) {
-                                socketRef.current.send(JSON.stringify({
-                                    type: 'start_timer',
-                                    roomId,
-                                    duration: timerDuration,
-                                }));
-                            }
-                        }}
+                        onClick={handleStartTimer}
                         disabled={isRevealed || (timeLeft !== null && timeLeft > 0)}
                         className={`px-4 py-2 rounded transition text-white ${isRevealed || (timeLeft !== null && timeLeft > 0)
                             ? 'bg-gray-400 cursor-not-allowed'
@@ -176,14 +116,7 @@ const RoomPage = () => {
                         ))}
                     </ul>
                     <button
-                        onClick={() => {
-                            if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-                                socketRef.current.send(JSON.stringify({
-                                    type: 'reset',
-                                    roomId,
-                                }));
-                            }
-                        }}
+                        onClick={handleReset}
                         className="mt-6 px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition"
                     >
                         🔄 New Round
