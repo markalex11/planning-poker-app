@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { ClientMessageType, type ServerMessage, ServerMessageType } from 'shared/sharedTypes';
+import { type ClientMessage, ClientMessageType, type JoinMessage, type ResetMessage, type ServerMessage, ServerMessageType, type StartTimerMessage, type VoteMessage } from 'shared/sharedTypes';
 
 type User = { name: string; voted: boolean };
 type Vote = { userName: string; value: number | null };
@@ -16,15 +16,19 @@ type RoomState = {
     timeLeft: number | null;
     roomId: string;
     userName: string;
-    joinRoom: (roomId: string, userName: string) => void;
+    theme: 'light' | 'dark';
+
+    joinRoom: (roomId: string, userName: string, onSuccess?: () => void, onError?: (reason: string) => void) => void;
     vote: (value: number) => void;
-    setMyVote: (vote: number | string | undefined) => void;
     startTimer: (duration: number) => void;
     resetRound: () => void;
-    setTimeLeft: (seconds: number | null) => void;
+    leaveRoom: () => void;
+
     setUserName: (name: string) => void;
     setRoomId: (id: string) => void;
-    setTimerDuration: (seconds: number) => void
+    setTimeLeft: (seconds: number | null) => void;
+    setTimerDuration: (seconds: number) => void;
+    setTheme: (theme: 'light' | 'dark') => void;
 };
 
 export const useRoomStore = create<RoomState>()(
@@ -40,22 +44,39 @@ export const useRoomStore = create<RoomState>()(
             timeLeft: null,
             roomId: '',
             userName: '',
+            theme: 'light',
 
             setUserName: (name) => set({ userName: name }),
             setRoomId: (id) => set({ roomId: id }),
             setTimeLeft: (s) => set({ timeLeft: s }),
-            setMyVote: (vote) => set({ myVote: vote }),
-            setTimerDuration: (s) => set({timerDuration: s}),
+            setTimerDuration: (s) => set({ timerDuration: s }),
+            setTheme: (theme) => {
+                set({ theme });
+                // document.documentElement.classList.toggle('dark', theme === 'dark');
+            },
 
-            joinRoom: (roomId, userName) => {
+            joinRoom: (roomId, userName, onSuccess, onError) => {
+                const existingSocket = get().socket;
+                console.log(existingSocket?.readyState, 'existing>>>');
+
+                if (existingSocket?.readyState === WebSocket.OPEN || existingSocket?.readyState === WebSocket.CONNECTING) return;
+
                 const socket = new WebSocket('ws://localhost:3001');
 
                 socket.onopen = () => {
-                    socket.send(JSON.stringify({ type: ClientMessageType.Join, roomId, userName }));
+                    const message: JoinMessage = { type: ClientMessageType.Join, roomId, userName };
+                    sendToServer(socket, message);
                 };
 
                 socket.onmessage = (event) => {
                     const data: ServerMessage = JSON.parse(event.data);
+
+                    if (data.type === ServerMessageType.JoinRejected) {
+                        onError?.(data.reason || 'Join rejected');
+                        socket.close();
+                        return;
+                    }
+
                     switch (data.type) {
                         case ServerMessageType.Users:
                             set({ users: data.users });
@@ -75,6 +96,7 @@ export const useRoomStore = create<RoomState>()(
                             break;
                         case ServerMessageType.RoomStatus:
                             set({ isRevealed: data.isRevealed });
+                            onSuccess?.();
                             break;
                     }
                 };
@@ -88,21 +110,40 @@ export const useRoomStore = create<RoomState>()(
 
             vote: (value) => {
                 const { socket, roomId, userName } = get();
-                if (socket?.readyState !== WebSocket.OPEN) return;
-                socket.send(JSON.stringify({ type: ClientMessageType.Vote, roomId, userName, value }));
+                const message: VoteMessage = { type: ClientMessageType.Vote, roomId, userName, value }
+                sendToServer(socket, message);
+                set({ myVote: value })
             },
 
             startTimer: (duration) => {
                 const { socket, roomId } = get();
-                if (socket?.readyState !== WebSocket.OPEN) return;
-                socket.send(JSON.stringify({ type: ClientMessageType.StartTimer, roomId, duration }));
+                const message: StartTimerMessage = { type: ClientMessageType.StartTimer, roomId, duration }
+                sendToServer(socket, message);
             },
 
             resetRound: () => {
                 const { socket, roomId } = get();
-                if (socket?.readyState !== WebSocket.OPEN) return;
-                socket.send(JSON.stringify({ type: ClientMessageType.Reset, roomId }));
+                const message: ResetMessage = { type: ClientMessageType.Reset, roomId };
+                sendToServer(socket, message);
             },
+
+            leaveRoom: () => {
+                const socket = get().socket;
+                if (socket?.readyState === WebSocket.OPEN) {
+                    socket.close();
+                }
+                set({
+                    socket: null,
+                    // roomId: '',
+                    // userName: '',
+                    users: [],
+                    votes: [],
+                    myVote: undefined,
+                    isRevealed: false,
+                    timerStart: null,
+                    timeLeft: null,
+                });
+            }
         }),
         {
             name: 'room-session',
@@ -110,9 +151,15 @@ export const useRoomStore = create<RoomState>()(
             partialize: (state) => ({
                 roomId: state.roomId,
                 userName: state.userName,
-                setRoomId: state.setRoomId,
-                setUserName: state.setUserName,
+                theme: state.theme,
+                // setRoomId: state.setRoomId,
+                // setUserName: state.setUserName,
             }),
         }
     )
 );
+
+function sendToServer(socket: WebSocket | null, message: ClientMessage) {
+    if (socket?.readyState !== WebSocket.OPEN) return;
+    socket.send(JSON.stringify(message));
+}

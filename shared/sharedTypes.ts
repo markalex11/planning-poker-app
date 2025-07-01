@@ -11,6 +11,7 @@ export enum ServerMessageType {
     Reset = 'reset',
     RoomStatus = 'room_status',
     TimerStarted = 'timer_started',
+    JoinRejected = 'join_rejected'
 }
 
 // from client to server
@@ -65,6 +66,11 @@ export type ResetBroadcastMessage = {
     roomId: string;
 }
 
+export type RejectMessage = {
+    type: ServerMessageType.JoinRejected;
+    reason: string
+}
+
 
 
 export type ClientMessage =
@@ -76,6 +82,7 @@ export type ClientMessage =
 export type ServerMessage =
   | UsersMessage
   | ResetBroadcastMessage
+  | RejectMessage
   | RevealMessage
   | RoomStatusMessage
   | TimerStartedMessage;

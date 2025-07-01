@@ -1,19 +1,9 @@
 import { useEffect } from 'react';
-import { useParams } from 'react-router-dom';
 import { useRoomStore } from '../store/useRoomStore';
 
 const RoomPage = () => {
-    const routeRoomId = useParams().roomId;
-    const { roomId, userName, joinRoom, vote, startTimer, resetRound } = useRoomStore();
-    const { timerStart, timerDuration, setTimeLeft, timeLeft, setTimerDuration } = useRoomStore();
-    const { users, votes, isRevealed } = useRoomStore();
-    const { setMyVote, myVote } = useRoomStore();
-
-    useEffect(() => {
-        if (routeRoomId && userName) {
-            joinRoom(routeRoomId, userName);
-        }
-    }, [routeRoomId, userName]);
+    const { roomId, userName, users, votes, isRevealed, myVote, timerStart, timerDuration, timeLeft,
+            vote, startTimer, resetRound, setTimeLeft, setTimerDuration } = useRoomStore();
 
     useEffect(() => {
         if (!timerStart || !timerDuration) return;
@@ -28,12 +18,11 @@ const RoomPage = () => {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [timerStart, timerDuration]); 
+    }, [timerStart, timerDuration]);
 
     const handleVote = (value: number) => {
         if (!isRevealed) {
             vote(value);
-            setMyVote(value);
         }
     };
 

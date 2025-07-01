@@ -1,7 +1,7 @@
 import { WebSocket } from 'ws';
 import { Rooms } from '../types';
 import { syncUsers } from '../utils/roomUtils';
-import { JoinMessage, RoomStatusMessage, ServerMessageType, TimerStartedMessage } from '../../../shared/sharedTypes';
+import { JoinMessage, RejectMessage, RoomStatusMessage, ServerMessageType, TimerStartedMessage } from '../../../shared/sharedTypes';
 
 export function handleJoin(parsed: JoinMessage, ws: WebSocket, rooms: Rooms) {
     const { roomId, userName } = parsed;
@@ -16,16 +16,24 @@ export function handleJoin(parsed: JoinMessage, ws: WebSocket, rooms: Rooms) {
 
     const room = rooms[roomId];
 
-    const alreadyExists = room.users.some((u) => u.name === userName);
+    const alreadyExists = room.users.some((u) => u.socket === ws || u.name === userName);
 
-    if (!alreadyExists) {
-        room.users.push({
-            name: userName,
-            socket: ws,
-            voted: false,
-            value: null,
-        });
+    if (alreadyExists) {
+        console.log(`User ${userName} already exists in room ${roomId}, skipping`);
+        const rejectMessage: RejectMessage = {
+            type: ServerMessageType.JoinRejected,
+            reason: 'Name already taken',
+        };
+        ws.send(JSON.stringify(rejectMessage));
+        return;
     }
+
+    room.users.push({
+        name: userName,
+        socket: ws,
+        voted: false,
+        value: null,
+    });
 
     console.log(`👤 ${userName} joined room ${roomId}`);
 
@@ -45,6 +53,6 @@ export function handleJoin(parsed: JoinMessage, ws: WebSocket, rooms: Rooms) {
         }
         ws.send(JSON.stringify(timerMessage));
     }
-    
+
     syncUsers(roomId, rooms);
 }
