@@ -53,7 +53,6 @@ wss.on('connection', function connection(ws) {
     ws.on('close', () => {
         if (currentRoom && currentUser && rooms[currentRoom]) {
             // remove user from room
-            // rooms[currentRoom].users = rooms[currentRoom].users.filter(u => u.name !== currentUser);
             rooms[currentRoom].users = rooms[currentRoom].users.filter(u => u.socket !== ws);
             console.log(`❌ ${currentUser} left room ${currentRoom}`);
             syncUsers(currentRoom, rooms)
