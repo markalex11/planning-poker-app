@@ -2,8 +2,11 @@
 ## Project Structure
 
 ├── client/ # React frontend
+
 ├── server/ # Node.js WebSocket backend
+
 ├── shared/ # Types
+
 └── README.md
 
 
