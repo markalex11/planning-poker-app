@@ -9,7 +9,7 @@ export function handleVote(parsed: VoteMessage, rooms: Rooms) {
     const room = rooms[roomId];
     if (!room) return;
 
-    console.log(`🗳️ ${userName} voted in room ${roomId}`);
+    console.log(`${userName} voted in room ${roomId}`);
 
     const user = room.users.find((u) => u.name === userName);
     if (user) {

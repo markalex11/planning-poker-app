@@ -32,7 +32,6 @@ wss.on('connection', function connection(ws) {
             case ClientMessageType.Join : {
                 currentRoom = roomId
                 currentUser = userName
-                console.log("switch join>>");
                 handleJoin(parsed, ws, rooms)
                 break
             }

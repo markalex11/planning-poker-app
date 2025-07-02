@@ -1,8 +1,8 @@
 import { Route, Routes } from 'react-router-dom'
 import './App.css'
-import StartPage from './futures/StartPage'
-import RoomPage from './futures/RoomPage'
-import Header from './futures/Header';
+import StartPage from './components/StartPage'
+import RoomPage from './components/RoomPage'
+import Header from './components/Header';
 import { useEffect } from 'react';
 import { useRoomStore } from './store/useRoomStore';
 import RouteWatcher from './utils/RouteWatcher';

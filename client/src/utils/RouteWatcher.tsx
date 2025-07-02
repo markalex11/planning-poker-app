@@ -1,11 +1,11 @@
 import { useLocation } from 'react-router-dom';
 import { useEffect, useRef } from 'react';
-import { useRoomStore } from '../store/useRoomStore';
+import { socketService, useRoomStore } from '../store/useRoomStore';
 
 const RouteWatcher = () => {
     const location = useLocation();
     const prevPath = useRef(location.pathname);
-    const { leaveRoom, joinRoom, roomId, userName, socket } = useRoomStore();
+    const { leaveRoom, joinRoom, roomId, userName } = useRoomStore();
 
     useEffect(() => {
         const wasInRoom = prevPath.current.startsWith('/room');
@@ -15,7 +15,7 @@ const RouteWatcher = () => {
             leaveRoom();
         }
 
-        if (isNowInRoom && roomId && userName && !socket) {
+        if (isNowInRoom && roomId && userName && !socketService.isConnected()) {
             joinRoom(roomId, userName);
         }
 
