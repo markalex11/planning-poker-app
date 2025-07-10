@@ -1,39 +1,14 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useRoomStore } from '../store/useRoomStore';
+import { useJoinRoomForm } from "./useJoinRoomForm";
 
-const StartPage = () => {
-    const navigate = useNavigate();
-    const [name, setName] = useState('');
-    const [nameError, setNameError] = useState(false);
-    const [roomIdInput, setRoomIdInput] = useState('');
-    const { joinRoom, setUserName, setRoomId } = useRoomStore();
-
-    const onNameChange = (value: string) => {
-        setName(value);
-        if (nameError && value.trim()) setNameError(false);
-    };
-
-    const handleJoin = () => {
-        if (!name.trim()) {
-            setNameError(true);
-            return;
-        }
-        setNameError(false);
-
-        const finalRoomId = roomIdInput.trim() || crypto.randomUUID();
-
-        setUserName(name.trim());
-        setRoomId(finalRoomId);
-
-        joinRoom(finalRoomId, name,
-            () => navigate(`/room/${finalRoomId}`),
-            (err) => {
-                console.log(err);
-                setNameError(true)
-            }
-        );
-    };
+const JoinPage = () => {
+    const {
+        name,
+        nameError,
+        roomIdInput,
+        setRoomIdInput,
+        onNameChange,
+        handleJoin,
+    } = useJoinRoomForm();
 
     return (
         <div className="min-h-[calc(100vh-64px)] flex items-center justify-center px-4 bg-gray-50 dark:bg-gray-900">
@@ -97,4 +72,4 @@ const StartPage = () => {
     );
 };
 
-export default StartPage;
+export default JoinPage;

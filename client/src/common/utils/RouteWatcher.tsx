@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import { useEffect, useRef } from 'react';
-import { socketService, useRoomStore } from '../store/useRoomStore';
+import { socketService, useRoomStore } from '../../store/useRoomStore';
 
 const RouteWatcher = () => {
     const location = useLocation();
@@ -26,3 +26,23 @@ const RouteWatcher = () => {
 };
 
 export default RouteWatcher;
+
+// В AuthProvider
+// const [user, setUser] = useState<User | null>(null);
+// const [loading, setLoading] = useState(true);
+
+// useEffect(() => {
+//   fetch('/api/me', { credentials: 'include' })
+//     .then((res) => res.ok ? res.json() : null)
+//     .then(setUser)
+//     .finally(() => setLoading(false));
+// }, []);
+
+// const RequireAuth = ({ children }: { children: React.ReactNode }) => {
+//   const { user, loading } = useAuthContext();
+
+//   if (loading) return <div>Loading...</div>;
+//   if (!user) return <Navigate to="/login" replace />;
+
+//   return <>{children}</>;
+// };

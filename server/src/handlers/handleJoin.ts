@@ -1,7 +1,7 @@
 import { WebSocket } from 'ws';
 import { Rooms } from '../types';
 import { syncUsers } from '../utils/roomUtils';
-import { JoinMessage, RejectMessage, RoomStatusMessage, ServerMessageType, TimerStartedMessage } from '../../../shared/sharedTypes';
+import { JoinMessage, RejectMessage, RevealMessage, RoomStatusMessage, ServerMessageType, TimerStartedMessage } from '../../../shared/sharedTypes';
 
 export function handleJoin(parsed: JoinMessage, ws: WebSocket, rooms: Rooms) {
     const { roomId, userName } = parsed;
@@ -53,6 +53,20 @@ export function handleJoin(parsed: JoinMessage, ws: WebSocket, rooms: Rooms) {
         }
         ws.send(JSON.stringify(timerMessage));
     }
+    // send votes if room in revealStatus
+    // if (room.isRevealed) {
+    //     const votes = room.users.map(({ name, value }) => ({
+    //         userName: name,
+    //         value,
+    //     }));
+
+    //     const message: RevealMessage = {
+    //         type: ServerMessageType.Reveal,
+    //         votes,
+    //     };
+       
+    //     ws.send(JSON.stringify(message))
+    // }
 
     syncUsers(roomId, rooms);
 }

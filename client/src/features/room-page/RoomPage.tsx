@@ -1,34 +1,20 @@
-import { useEffect } from 'react';
-import { useRoomStore } from '../store/useRoomStore';
+import { useRoomStore } from '../../store/useRoomStore';
 import RoomInfo from './RoomInfo';
 import UserCard from './UserCard';
 import VoteCard from './VoteCard';
 import TimerControls from './TimerControls';
+import { useRoomTimer } from './useRoomTimer';
+import { useCallback } from 'react';
 
 const RoomPage = () => {
-    const { roomId, userName, users, votes, isRevealed, myVote, timerStart, timerDuration, timeLeft,
-        vote, startTimer, resetRound, setTimeLeft, setTimerDuration } = useRoomStore();
+    const { roomId, userName, users, votes, isRevealed, myVote, timerDuration, timeLeft,
+        vote, startTimer, resetRound, setTimerDuration } = useRoomStore();
 
-    useEffect(() => {
-        if (!timerStart || !timerDuration) return;
+    useRoomTimer();
 
-        const interval = setInterval(() => {
-            const secondsLeft = Math.max(
-                0,
-                Math.ceil((timerDuration * 1000 - (Date.now() - timerStart)) / 1000)
-            );
-            setTimeLeft(secondsLeft);
-            if (secondsLeft <= 0) clearInterval(interval);
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, [timerStart, timerDuration]);
-
-    const handleVote = (value: number) => {
-        if (!isRevealed) {
-            vote(value);
-        }
-    };
+    const handleVote = useCallback((value: number) => {
+        if (!isRevealed) vote(value);
+    }, [isRevealed, vote]);
 
     const handleStartTimer = () => {
         if (timerDuration > 0 && !isRevealed && (!timeLeft || timeLeft === 0)) {

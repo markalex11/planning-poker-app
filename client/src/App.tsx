@@ -1,28 +1,29 @@
-import { Route, Routes } from 'react-router-dom'
-import './App.css'
-import StartPage from './components/StartPage'
-import RoomPage from './components/RoomPage'
-import Header from './components/Header';
-import { useEffect } from 'react';
-import { useRoomStore } from './store/useRoomStore';
-import RouteWatcher from './utils/RouteWatcher';
+import { Route, Routes } from 'react-router-dom';
+import './App.css';
+import Header from './common/components/Header';
+import RouteWatcher from './common/utils/RouteWatcher';
+import JoinPage from './features/join-page/JoinPage';
+import { useApplyTheme } from './common/hooks/useApplyTheme';
+import { lazy, Suspense } from 'react';
+
+const RoomPage = lazy(() => import('./features/room-page/RoomPage'));
 
 function App() {
-    const theme = useRoomStore((s) => s.theme);
-
-    useEffect(() => {
-        const { theme } = useRoomStore.getState();
-        document.documentElement.classList.toggle('dark', theme === 'dark');
-    }, [theme])
+    useApplyTheme()
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
             <Header />
             <Routes>
-                <Route path="/" element={<StartPage />} />
-                <Route path="/room/:roomId" element={<RoomPage />} />
+                <Route path="/" element={<JoinPage />} />
+                <Route path="/room/:roomId" element={
+                    <Suspense fallback={<div className="p-4">Loading room...</div>}>
+                        <RoomPage />
+                    </Suspense>
+                } />
+                <Route path="*" element={<div className="p-4">404 — Page Not Found</div>} />
             </Routes>
-             <RouteWatcher />
+            <RouteWatcher />
         </div>
     );
 }

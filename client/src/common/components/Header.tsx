@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useRoomStore } from '../store/useRoomStore';
+import { useRoomStore } from '../../store/useRoomStore';
 
 const Header = () => {
     const navigate = useNavigate();
